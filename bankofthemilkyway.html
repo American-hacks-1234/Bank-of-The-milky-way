@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Skyline Bank</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#eef2f7; margin:0; }
+  header { background:#1b3a63; color:white; padding:15px 25px; display:flex; justify-content:space-between; }
+  main { max-width:1000px; margin:30px auto; padding:0 20px; }
+  .card { background:white; padding:20px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:20px; }
+  .flex { display:flex; flex-wrap:wrap; gap:20px; }
+  label { display:block; margin-top:10px; }
+  input, select { width:100%; padding:7px; margin-top:3px; box-sizing:border-box; }
+  button { margin-top:12px; padding:8px 14px; background:#1b3a63; color:white; border:none; cursor:pointer; }
+  button:hover { background:#244f88; }
+  .hidden { display:none; }
+  .status { margin-top:10px; color:#b03030; }
+  .status.ok { color:#1f7a3a; }
+  table { width:100%; border-collapse:collapse; margin-top:10px; }
+  th, td { border:1px solid #ccc; padding:6px; }
+  th { background:#f0f3f8; }
+  .tag { padding:2px 6px; border-radius:4px; background:#ddd; font-size:12px; }
+  .frozen { background:#ffcccc; color:#900; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Skyline Bank</h1>
+  <div id="currentUserDisplay"></div>
+</header>
+
+<main>
+
+<section id="authSection">
+  <div class="flex">
+    <div class="card">
+      <h2>Create Account</h2>
+      <label>First Name</label><input id="suFirst">
+      <label>Last Name</label><input id="suLast">
+      <label>Username</label><input id="suUser">
+      <label>Password</label><input id="suPass" type="password">
+      <button id="btnSignUp">Sign Up</button>
+      <div class="status" id="suStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>User Login</h2>
+      <label>Username</label><input id="liUser">
+      <label>Password</label><input id="liPass" type="password">
+      <button id="btnLogin">Sign In</button>
+      <div class="status" id="liStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>Admin Login</h2>
+      <label>Username</label><input id="adUser" placeholder="Admin67">
+      <label>Password</label><input id="adPass" type="password">
+      <button id="btnAdminLogin">Admin Sign In</button>
+      <div class="status" id="adStatus"></div>
+    </div>
+  </div>
+</section>
+
+<section id="userSection" class="hidden">
+  <div class="card">
+    <h2>User Dashboard</h2>
+    <p><strong>Name:</strong> <span id="uName"></span></p>
+    <p><strong>Account #:</strong> <span id="uAcct"></span></p>
+    <p><strong>Status:</strong> <span id="uStatusTag" class="tag"></span></p>
+    <p><strong>Balance:</strong> $<span id="uBal">0.00</span></p>
+    <button id="btnLogoutUser">Log Out</button>
+  </div>
+
+  <div class="flex">
+    <div class="card">
+      <h2>Deposit / Withdraw</h2>
+      <label>Amount</label><input id="uAmount" type="number" step="0.01">
+      <label>Type</label>
+      <select id="uType">
+        <option value="deposit">Deposit</option>
+        <option value="withdraw">Withdraw</option>
+      </select>
+      <button id="btnReqDW">Submit</button>
+      <div class="status" id="uDWStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>Transfer</h2>
+      <label>Target Account #</label><input id="tgtAcct">
+      <label>Amount</label><input id="tAmount" type="number" step="0.01">
+      <button id="btnTransfer">Transfer</button>
+      <div class="status" id="uTransferStatus"></div>
+      <div class="status">Note: $0.10 fee per transfer goes to admin.</div>
+    </div>
+  </div>
+</section>
+
+<section id="adminSection" class="hidden">
+  <div class="card">
+    <h2>Admin Dashboard</h2>
+    <p><strong>Admin account #:</strong> <span id="adminAcctNum"></span></p>
+    <p><strong>Admin balance:</strong> $<span id="adminBal">0.00</span></p>
+    <button id="btnLogoutAdmin">Log Out</button>
+  </div>
+
+  <div class="card">
+    <h2>All Accounts</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Account #</th><th>Name</th><th>User</th><th>Balance</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="adminAccountsBody"></tbody>
+    </table>
+    <div class="status" id="adminStatus"></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* ===== ADMIN CONFIG ===== */
+const ADMIN_USERNAME = "Admin67";
+const ADMIN_PASS_B64 = "NjUzdHI3ODR5cjc5USQq"; // Base64 of 653tr784yr79Q$*
+
+/* ===== DATABASE ===== */
+const accounts = [
+  {
+    firstName: "Bank",
+    lastName: "Admin",
+    username: ADMIN_USERNAME,
+    accountNumber: "0000000000",
+    balance: 0,
+    frozen: false,
+    password: null
+  }
+];
+
+let currentUser = null;
+let isAdmin = false;
+
+/* ===== HELPERS ===== */
+function genAccountNumber() {
+  let n = "";
+  for (let i = 0; i < 10; i++) n += Math.floor(Math.random() * 10);
+  return n;
+}
+function money(v) { return Number(v).toFixed(2); }
+function findUser(u) { return accounts.find(a => a.username === u); }
+function findAcct(n) { return accounts.find(a => a.accountNumber === n); }
+function getAdminAccount() { return accounts[0]; }
+function toBase64(str) { return btoa(str); }
+
+function showSection(id) {
+  authSection.classList.add("hidden");
+  userSection.classList.add("hidden");
+  adminSection.classList.add("hidden");
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function refreshUserUI() {
+  uName.textContent = currentUser.firstName + " " + currentUser.lastName;
+  uAcct.textContent = currentUser.accountNumber;
+  uBal.textContent = money(currentUser.balance);
+  uStatusTag.textContent = currentUser.frozen ? "Frozen" : "Active";
+  uStatusTag.className = "tag" + (currentUser.frozen ? " frozen" : "");
+  currentUserDisplay.textContent = "Signed in: " + currentUser.username;
+}
+
+function refreshAdminHeader() {
+  const adminAcc = getAdminAccount();
+  adminAcctNum.textContent = adminAcc.accountNumber;
+  adminBal.textContent = money(adminAcc.balance);
+  currentUserDisplay.textContent = "Admin: " + ADMIN_USERNAME;
+}
+
+function refreshAdminTable() {
+  adminAccountsBody.innerHTML = "";
+  accounts.forEach(acc => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${acc.accountNumber}</td>
+      <td>${acc.firstName} ${acc.lastName}</td>
+      <td>${acc.username}</td>
+      <td>$${money(acc.balance)}</td>
+      <td><span class="tag ${acc.frozen ? "frozen" : ""}">${acc.frozen ? "Frozen" : "Active"}</span></td>
+      <td>
+        <input type="number" step="0.01" placeholder="New balance" class="balInput">
+        <button class="setBal">Set</button>
+        <button class="freezeBtn">${acc.frozen ? "Unfreeze" : "Freeze"}</button>
+      </td>`;
+    adminAccountsBody.appendChild(tr);
+
+    const inp = tr.querySelector(".balInput");
+    tr.querySelector(".setBal").onclick = () => {
+      const val = parseFloat(inp.value);
+      if (isNaN(val) || val < 0) {
+        adminStatus.textContent = "Enter a valid non-negative balance.";
+        adminStatus.className = "status";
+        return;
+      }
+      acc.balance = val;
+      adminStatus.textContent = "Balance updated.";
+      adminStatus.className = "status ok";
+      refreshAdminTable();
+      if (currentUser && currentUser.accountNumber === acc.accountNumber) refreshUserUI();
+      refreshAdminHeader();
+    };
+
+    tr.querySelector(".freezeBtn").onclick = () => {
+      acc.frozen = !acc.frozen;
+      adminStatus.textContent = "Account updated.";
+      adminStatus.className = "status ok";
+      refreshAdminTable();
+      if (currentUser && currentUser.accountNumber === acc.accountNumber) refreshUserUI();
+    };
+  });
+}
+
+/* ===== SIGN UP ===== */
+btnSignUp.onclick = () => {
+  const first = suFirst.value.trim();
+  const last = suLast.value.trim();
+  const user = suUser.value.trim();
+  const pass = suPass.value;
+
+  if (!first || !last || !user || !pass) {
+    suStatus.textContent = "All fields required.";
+    return;
+  }
+  if (findUser(user)) {
+    suStatus.textContent = "Username taken.";
+    return;
+  }
+
+  const acctNum = genAccountNumber();
+  accounts.push({
+    firstName: first,
+    lastName: last,
+    username: user,
+    password: pass,
+    accountNumber: acctNum,
+    balance: 0,
+    frozen: false
+  });
+
+  suStatus.textContent = "Account created! #" + acctNum;
+  suStatus.className = "status ok";
+  suFirst.value = suLast.value = suUser.value = suPass.value = "";
+};
+
+/* ===== USER LOGIN ===== */
+btnLogin.onclick = () => {
+  const user = liUser.value.trim();
+  const pass = liPass.value;
+  const acc = findUser(user);
+
+  if (!acc || acc.password !== pass || acc.username === ADMIN_USERNAME) {
+    liStatus.textContent = "Invalid login.";
+    return;
+  }
+
+  currentUser = acc;
+  isAdmin = false;
+  showSection("userSection");
+  refreshUserUI();
+};
+
+/* ===== ADMIN LOGIN (BASE64 CHECK) ===== */
+btnAdminLogin.onclick = () => {
+  const user = adUser.value.trim();
+  const pass = adPass.value;
+
+  if (user !== ADMIN_USERNAME) {
+    adStatus.textContent = "Invalid admin login.";
+    return;
+  }
+
+  if (toBase64(pass) !== ADMIN_PASS_B64) {
+    adStatus.textContent = "Invalid admin login.";
+    return;
+  }
+
+  isAdmin = true;
+  currentUser = null;
+  showSection("adminSection");
+  refreshAdminTable();
+  refreshAdminHeader();
+};
+
+/* ===== LOGOUTS ===== */
+btnLogoutUser.onclick = () => {
+  currentUser = null;
+  isAdmin = false;
+  currentUserDisplay.textContent = "";
+  showSection("authSection");
+};
+btnLogoutAdmin.onclick = () => {
+  currentUser = null;
+  isAdmin = false;
+  currentUserDisplay.textContent = "";
+  showSection("authSection");
+};
+
+/* ===== DEPOSIT / WITHDRAW ===== */
+btnReqDW.onclick = () => {
+  if (!currentUser) return;
+  const amt = parseFloat(uAmount.value);
+  const type = uType.value;
+
+  if (currentUser.frozen) {
+    uDWStatus.textContent = "Account frozen.";
+    return;
+  }
+  if (isNaN(amt) || amt <= 0) {
+    uDWStatus.textContent = "Invalid amount.";
+    return;
+  }
+
+  if (type === "deposit") {
+    currentUser.balance += amt;
+  } else {
+    if (currentUser.balance < amt) {
+      uDWStatus.textContent = "Insufficient funds.";
+      return;
+    }
+    currentUser.balance -= amt;
+  }
+
+  uDWStatus.textContent = "Success.";
+  uDWStatus.className = "status ok";
+  uAmount.value = "";
+  refreshUserUI();
+};
+
+/* ===== TRANSFER WITH $0.10 FEE ===== */
+btnTransfer.onclick = () => {
+  if (!currentUser) return;
+  const tgt = tgtAcct.value.trim();
+  const amt = parseFloat(tAmount.value);
+  const fee = 0.10;
+
+  if (currentUser.frozen) {
+    uTransferStatus.textContent = "Account frozen.";
+    return;
+  }
+  if (!tgt || isNaN(amt) || amt <= 0) {
+    uTransferStatus.textContent = "Invalid input.";
+    return;
+  }
+
+  const targetAcc = findAcct(tgt);
+  if (!targetAcc) {
+    uTransferStatus.textContent = "Target not found.";
+    return;
+  }
+  if (targetAcc.frozen) {
+    uTransferStatus.textContent = "Target frozen.";
+    return;
+  }
+
+  const total = amt + fee;
+  if (currentUser.balance < total) {
+    uTransferStatus.textContent = "Insufficient funds.";
+    return;
+  }
+
+  const adminAcc = getAdminAccount();
+  currentUser.balance -= total;
+  targetAcc.balance += amt;
+  adminAcc.balance += fee;
+
+  uTransferStatus.textContent = "Transfer complete.";
+  uTransferStatus.className = "status ok";
+  tgtAcct.value = tAmount.value = "";
+  refreshUserUI();
+  refreshAdminHeader();
+};
+</script>
+
+</body>
+</html>
