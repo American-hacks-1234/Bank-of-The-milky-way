@@ -67,14 +67,20 @@
 </div>
 
 <script>
-  // Load saved data or defaults
-  let clicks = Number(localStorage.getItem("clicks")) || 0;
-  let perClick = Number(localStorage.getItem("perClick")) || 1;
-  let autoClickers = Number(localStorage.getItem("autoClickers")) || 0;
+  // Safe load function (prevents NaN)
+  function loadNumber(key, fallback) {
+    const value = Number(localStorage.getItem(key));
+    return isNaN(value) ? fallback : value;
+  }
 
-  let upg1Cost = Number(localStorage.getItem("upg1Cost")) || 20;
-  let upg5Cost = Number(localStorage.getItem("upg5Cost")) || 100;
-  let autoCost = Number(localStorage.getItem("autoCost")) || 250;
+  // Load saved data safely
+  let clicks = loadNumber("clicks", 0);
+  let perClick = loadNumber("perClick", 1);
+  let autoClickers = loadNumber("autoClickers", 0);
+
+  let upg1Cost = loadNumber("upg1Cost", 20);
+  let upg5Cost = loadNumber("upg5Cost", 100);
+  let autoCost = loadNumber("autoCost", 250);
 
   const countDisplay = document.getElementById("count");
   const clickBtn = document.getElementById("clickBtn");
@@ -112,4 +118,49 @@
   });
 
   // Upgrade +1 per click
-  upg1Btn.addEventListener("click",
+  upg1Btn.addEventListener("click", () => {
+    if (clicks >= upg1Cost) {
+      clicks -= upg1Cost;
+      perClick += 1;
+      upg1Cost = Math.floor(upg1Cost * 1.5);
+      save();
+      updateUI();
+    }
+  });
+
+  // Upgrade +5 per click
+  upg5Btn.addEventListener("click", () => {
+    if (clicks >= upg5Cost) {
+      clicks -= upg5Cost;
+      perClick += 5;
+      upg5Cost = Math.floor(upg5Cost * 1.7);
+      save();
+      updateUI();
+    }
+  });
+
+  // Auto-clicker
+  autoBtn.addEventListener("click", () => {
+    if (clicks >= autoCost) {
+      clicks -= autoCost;
+      autoClickers += 1;
+      autoCost = Math.floor(autoCost * 2);
+      save();
+      updateUI();
+    }
+  });
+
+  // Auto-clicker loop
+  setInterval(() => {
+    if (autoClickers > 0) {
+      clicks += autoClickers;
+      save();
+      updateUI();
+    }
+  }, 1000);
+
+  updateUI();
+</script>
+
+</body>
+</html>
